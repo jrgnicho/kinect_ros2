@@ -26,12 +26,17 @@ def generate_launch_description():
                 executable="kinect_ros2_node",
                 name="kinect_ros2",
                 namespace="kinect",
+                parameters=[
+                    {"depth_frame_id": "camera_depth_optical_frame",
+                     "rgb_frame_id" : "camera_rgb_optical_frame"
+                             }
+                    ]
             ),
             Node(
                 package="rviz2",
                 executable="rviz2",
                 name="rviz2",
-                output="screen",
+                output="log",
                 arguments=["-d", LaunchConfiguration("rvizconfig")],
             ),
         ]

@@ -14,9 +14,22 @@ static uint8_t * _freenect_rgb_pointer = nullptr;
 static bool _depth_flag;
 static bool _rgb_flag;
 
+static const std::string kDefaultDepthFrameID = "kinect_depth";
+static const std::string kDefaultRGBFrameID = "kinect_rgb";
+
 KinectRosComponent::KinectRosComponent(const rclcpp::NodeOptions & options)
 : Node("kinect_ros2", options)
 {
+
+  std::vector<std::tuple<std::string, rclcpp::ParameterType>> parameter_names = {
+       std::make_tuple("depth_frame_id", rclcpp::ParameterType::PARAMETER_STRING),
+       std::make_tuple("rgb_frame_id", rclcpp::ParameterType::PARAMETER_STRING)};
+  std::for_each(parameter_names.begin(), parameter_names.end(), [this](const std::tuple<std::string, rclcpp::ParameterType>& tp){
+    this->declare_parameter(std::get<0>(tp),std::get<1>(tp));
+  });
+
+  depth_frame_id_ = this->get_parameter_or("depth_frame_id", kDefaultDepthFrameID);
+  rgb_frame_id_ = this->get_parameter_or("rgb_frame_id", kDefaultRGBFrameID);
   timer_ = create_wall_timer(1ms, std::bind(&KinectRosComponent::timer_callback, this));
   
   std::string pkg_share = ament_index_cpp::get_package_share_directory("kinect_ros2");
@@ -31,7 +44,7 @@ KinectRosComponent::KinectRosComponent(const rclcpp::NodeOptions & options)
     "file://" + pkg_share + "/cfg/calibration_rgb.yaml");
 
   rgb_info_ = rgb_info_manager_->getCameraInfo();
-  rgb_info_.header.frame_id = "kinect_rgb";
+  rgb_info_.header.frame_id = kDefaultRGBFrameID;
   depth_info_ = depth_info_manager_->getCameraInfo();
   depth_info_.header.frame_id = "kinect_depth";
 
@@ -138,7 +151,7 @@ void KinectRosComponent::timer_callback()
 {
   freenect_process_events(fn_ctx_);
   auto header = std_msgs::msg::Header();
-  header.frame_id = "kinect_depth";
+  header.frame_id = depth_frame_id_;
 
   auto stamp = now();
   header.stamp = stamp;
@@ -158,7 +171,9 @@ void KinectRosComponent::timer_callback()
   }
 
   if (_rgb_flag) {
-    auto msg = cv_bridge::CvImage(std_msgs::msg::Header(), "rgb8", _rgb_image).toImageMsg();
+	header = rgb_info_.header;
+	header.stamp = stamp;
+    auto msg = cv_bridge::CvImage(header, "rgb8", _rgb_image).toImageMsg();
     rgb_pub_.publish(*msg, rgb_info_);
 
     // cv::imshow("RGB", _rgb_image);

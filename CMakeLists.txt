@@ -5,6 +5,11 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_BUILD_TYPE debug)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
+
 include_directories(include)
 
 # find dependencies
@@ -14,7 +19,7 @@ find_package(ament_index_cpp REQUIRED)
 find_package(rclcpp REQUIRED)
 # find_package(Threads REQUIRED)
 
-find_package(libfreenect REQUIRED)
+find_library(libfreenect libfreenect.so REQUIRED HINTS /usr/lib/x86_64-linux-gnu/)
 find_package(OpenCV REQUIRED)
 
 find_package(sensor_msgs REQUIRED)
@@ -29,6 +34,7 @@ target_compile_definitions(kinect_ros2_component
   PRIVATE "COMPOSITION_BUILDING_DLL")
 ament_target_dependencies(kinect_ros2_component 
   rclcpp
+  rclcpp_components
   sensor_msgs
   std_msgs
   cv_bridge

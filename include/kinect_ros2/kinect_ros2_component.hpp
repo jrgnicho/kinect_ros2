@@ -3,7 +3,7 @@
 
 extern "C"
 {
-  #include "libfreenect/libfreenect.h"
+  #include "libfreenect.h"
 }
 #include "rclcpp/rclcpp.hpp"
 #include "camera_info_manager/camera_info_manager.hpp"
@@ -29,6 +29,8 @@ private:
   sensor_msgs::msg::CameraInfo rgb_info_, depth_info_;
 
   image_transport::CameraPublisher depth_pub_, rgb_pub_;
+
+  std::string depth_frame_id_, rgb_frame_id_;
 
   static void depth_cb(freenect_device * dev, void * depth_ptr, uint32_t timestamp);
   static void rgb_cb(freenect_device * dev, void * rgb_ptr, uint32_t timestamp);
