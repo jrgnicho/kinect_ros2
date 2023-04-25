@@ -3,39 +3,41 @@
 #include "class_loader/class_loader.hpp"
 #include "ament_index_cpp/get_package_prefix.hpp"
 #include "rclcpp_components/node_factory.hpp"
+#include <boost/format.hpp>
 
-std::vector<class_loader::ClassLoader *> _loaders;
-std::vector<rclcpp_components::NodeInstanceWrapper> _node_wrappers;
+static std::vector<class_loader::ClassLoader *> kClassLoaders;
 
-rclcpp::node_interfaces::NodeBaseInterface::SharedPtr get_depth_image_proc_component()
+std::string GenerateNodeTypeName(const std::string& class_name)
 {
+  return boost::str(boost::format("rclcpp_components::NodeFactoryTemplate<%s>") % class_name);
+}
+
+std::vector<rclcpp_components::NodeInstanceWrapper> LoadImageProcNodes()
+{
+  const std::vector<std::string> classes = {
+    GenerateNodeTypeName("depth_image_proc::PointCloudXyzrgbNode")
+  };
+
   auto path_prefix = ament_index_cpp::get_package_prefix("depth_image_proc");
-  auto loader = new class_loader::ClassLoader(path_prefix + "/lib/libdepth_image_proc.so");
-  auto classes = loader->getAvailableClasses<rclcpp_components::NodeFactory>();
+  std::unique_ptr<class_loader::ClassLoader> loader = std::make_unique<class_loader::ClassLoader>(path_prefix + "/lib/libdepth_image_proc.so");
 
   rclcpp::NodeOptions options;
   options.use_intra_process_comms(true);
-  std::vector<std::string> arguments {
-    "image_rect:=depth/image_raw",
-    "camera_info:=depth/camera_info"
-  };
-  options.arguments(arguments);
+  options.arguments({"kinect_ros2:__node:=rgb"});
+  std::vector<rclcpp_components::NodeInstanceWrapper> nodes;
 
-  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node;
-  for (auto clazz : classes) {
-    auto node_factory = loader->createInstance<rclcpp_components::NodeFactory>(clazz);
-    auto wrapper = node_factory->create_node_instance(options);
-    if (clazz == "rclcpp_components::NodeFactoryTemplate<depth_image_proc::PointCloudXyzNode>") {
-      node = wrapper.get_node_base_interface();
-      _node_wrappers.push_back(wrapper);
-      break;
+  for(const auto& class_name : classes)
+  {
+    std::shared_ptr<rclcpp_components::NodeFactory> node_factory = loader->createInstance<rclcpp_components::NodeFactory>(class_name);
+    rclcpp_components::NodeInstanceWrapper node_wrapper = node_factory->create_node_instance(options);
+    if(node_wrapper.get_node_base_interface() == nullptr)
+    {
+      throw std::runtime_error(boost::str(boost::format("Failed to load class {}") % class_name));
     }
+    kClassLoaders.push_back(loader.get());
+    nodes.push_back(node_wrapper);
   }
-  if (node != nullptr) {
-    _loaders.push_back(loader);
-    return node;
-  }
-  throw std::invalid_argument("depth_image_proc::PointCloudXyzNode not found");
+  return nodes;
 }
 
 int main(int argc, char * argv[])
@@ -47,17 +49,18 @@ int main(int argc, char * argv[])
   options.use_intra_process_comms(true);
 
   auto kinect_component = std::make_shared<kinect_ros2::KinectRosComponent>(options);
-  auto depth_image_proc_component = get_depth_image_proc_component();
+  std::vector<rclcpp_components::NodeInstanceWrapper> nodes = LoadImageProcNodes();
 
   exec.add_node(kinect_component);
-  exec.add_node(depth_image_proc_component);
+  std::for_each(nodes.begin(), nodes.end(), [&exec](rclcpp_components::NodeInstanceWrapper& node){
+    exec.add_node(node.get_node_base_interface());
+  });
 
   exec.spin();
-
-  for (auto wrapper : _node_wrappers) {
-    exec.remove_node(wrapper.get_node_base_interface());
-  }
-  _node_wrappers.clear();
+  std::for_each(nodes.begin(), nodes.end(), [&exec](auto node){
+    exec.remove_node(node.get_node_base_interface());
+  });
+  nodes.clear();
 
   rclcpp::shutdown();
 

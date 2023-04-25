@@ -44,9 +44,9 @@ KinectRosComponent::KinectRosComponent(const rclcpp::NodeOptions & options)
     "file://" + pkg_share + "/cfg/calibration_rgb.yaml");
 
   rgb_info_ = rgb_info_manager_->getCameraInfo();
-  rgb_info_.header.frame_id = kDefaultRGBFrameID;
+  rgb_info_.header.frame_id = rgb_frame_id_;
   depth_info_ = depth_info_manager_->getCameraInfo();
-  depth_info_.header.frame_id = "kinect_depth";
+  depth_info_.header.frame_id = depth_frame_id_;
 
   depth_pub_ = image_transport::create_camera_publisher(this, "depth/image_raw");
   rgb_pub_ = image_transport::create_camera_publisher(this, "image_raw");
@@ -107,7 +107,7 @@ KinectRosComponent::KinectRosComponent(const rclcpp::NodeOptions & options)
 
 KinectRosComponent::~KinectRosComponent()
 {
-  RCLCPP_INFO(get_logger(), "stoping kinnect");
+  RCLCPP_INFO(get_logger(), "Stopping kinect");
   freenect_stop_depth(fn_dev_);
   freenect_stop_video(fn_dev_);
   freenect_close_device(fn_dev_);
@@ -173,6 +173,7 @@ void KinectRosComponent::timer_callback()
   if (_rgb_flag) {
 	header = rgb_info_.header;
 	header.stamp = stamp;
+	rgb_info_.header.stamp = stamp;
     auto msg = cv_bridge::CvImage(header, "rgb8", _rgb_image).toImageMsg();
     rgb_pub_.publish(*msg, rgb_info_);
 
